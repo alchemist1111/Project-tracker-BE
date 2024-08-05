@@ -48,7 +48,7 @@ env.bak/
 venv.bak/
 
 # Database files
-*.sqlite3
+# *.sqlite3
 
 # VS Code
 .vscode/
@@ -65,3 +65,4 @@ venv.bak/
 # Windows
 Thumbs.db
 ehthumbs.db
+.vercel
