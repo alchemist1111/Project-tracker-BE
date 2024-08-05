@@ -30,7 +30,7 @@ class UserRegistration(Resource):
     username = data.get('username')
     email = data.get('email')
     password = data.get('password')
-    is_admin = data.get('is_admin')
+    is_admin = data.get('is_admin', False)
 
     user = User.query.filter_by(email=email).first()
 
