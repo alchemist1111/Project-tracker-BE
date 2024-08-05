@@ -5,7 +5,7 @@ from flask_jwt_extended import (
 )
 import os
 from config import db, app
-from models import User
+from models import User, Project, ProjectMember, Cohort, Profile, Feedback
 
 # Configurations
 app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "super-secret-key")
@@ -71,9 +71,133 @@ class Login(Resource):
         else:
              return make_response({'error':"Unauthorized"},401)
         
-api.add_resource(Login,'/login',endpoint="login")   
+api.add_resource(Login,'/login',endpoint="login")
+
+# User CRUD operations
+class UserResource(Resource):
+    # Get all users
+    def get(self, user_id=None):
+        if user_id:
+            user = User.query.get_or_404(user_id)
+            user_dict = {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'is_admin': user.is_admin
+            }
+            return make_response(jsonify(user_dict), 200)
+        else:
+            users = User.query.all()
+            users_list = [{
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'is_admin': user.is_admin
+            } for user in users]
+            return make_response(jsonify(users_list), 200)
+
+
+    # Update user
+    def put(self, user_id):
+        user = User.query.get_or_404(user_id)
+        data = request.get_json()
+        
+        user.username = data.get('username', user.username)
+        user.email = data.get('email', user.email)
+        user.is_admin = data.get('is_admin', user.is_admin)
+        
+        db.session.commit()
+        
+        user_dict = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'is_admin': user.is_admin
+        }
+        return make_response(jsonify(user_dict), 200)
+    
+    # Delete user
+    def delete(self, user_id):
+        user = User.query.get_or_404(user_id)
+        db.session.delete(user)
+        db.session.commit()
+        return make_response(jsonify({'message': 'User deleted successfully'}), 200)
+
+api.add_resource(UserResource, '/users', '/users/<int:user_id>')    
+
+
+# Project CRUD operations
+class ProjectResource(Resource):
+    # Get a list of projects or a specific project
+    def get(self, project_id=None):
+        if project_id is None:
+            projects = Project.query.all()
+            projects_list = [{
+                "id": project.id,
+                "name": project.name,
+                "description": project.description,
+                "github_url": project.github_url
+            } for project in projects]
+            return make_response(jsonify(projects_list), 200)
+        else:
+            project = Project.query.get_or_404(project_id)
+            project_dict = {
+                "id": project.id,
+                "name": project.name,
+                "description": project.description,
+                "github_url": project.github_url
+            }
+            return make_response(jsonify(project_dict), 200)
+    
+    # Create a new project
+    def post(self):
+        pass
+
+
+    # Update an existing project
+    def put(self, project_id):
+        project = Project.query.get_or_404(project_id)
+        data = request.get_json()
+
+        project.name = data.get('name', project.name)
+        project.description = data.get('description', project.description)
+        project.github_url = data.get('github_url', project.github_url)
+
+        db.session.commit()
+
+        project_dict = {
+            "id": project.id,
+            "name": project.name,
+            "description": project.description,
+            "github_url": project.github_url
+        }
+        return make_response(jsonify(project_dict), 200)
+
+    # Delete an existing project
+    def delete(self, project_id):
+        project = Project.query.get_or_404(project_id)
+        db.session.delete(project)
+        db.session.commit()
+        return make_response(jsonify({"message": "Project deleted successful"}), 200) 
+
+api.add_resource(ProjectResource, '/projects', '/projects/<int:project_id>')      
+
+class ProjectMember(Resource):
+   pass
+
+class Cohort(Resource):
+   pass
+
+
+class Profile(Resource):
+   pass
+
+class Feedback(Resource):
+   pass
 
 if __name__ == '__main__':
-    app.run(port=5600,
+    app.run(
+        host='0.0.0.0', 
+        port=5600,
             debug=True
             )
