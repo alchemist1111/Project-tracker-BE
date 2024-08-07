@@ -182,8 +182,56 @@ class ProjectResource(Resource):
 
 api.add_resource(ProjectResource, '/projects', '/projects/<int:project_id>')      
 
-class ProjectMember(Resource):
-   pass
+class ProjectMemberResource(Resource):
+    # Get a list of project members
+    def get(self, project_member_id):
+        if project_member_id is None:
+            project_members = ProjectMember.query.all()
+            project_members_list = [{
+                "id": project_member.id,
+                "user_id": project_member.user_id,
+                "project_id": project_member.project_id
+            }for project_member in project_members]
+            return make_response(jsonify(project_members_list), 200)
+        else:
+            project_member = ProjectMember.query.get_or_404(project_member_id)
+            project_member_dict = {
+                "id": project_member.id,
+                "user_id": project_member.user_id,
+                "project_id": project_member.project_id
+            }
+            return make_response(jsonify(project_member_dict), 200)
+    
+    # Create a new project member
+    def post(self):
+        pass
+
+    # Update an existing project member
+    def put(self, project_member_id):
+        project_member = ProjectMember.query.get_or_404(project_member_id)
+        data = request.get_json()
+
+        project_member.user_id = data.get('user_id', project_member.user_id)
+        project_member.project_id = data.get('project_id', project_member.project_id)
+
+        db.session.commit()
+
+        project_member_dict = {
+            "id": project_member.id,
+            "user_id": project_member.user_id,
+            "project_id": project_member.project_id
+        }
+        return make_response(jsonify(project_member_dict), 200)
+
+    # Delete an existing project member
+    def delete(self, project_member_id):
+        project_member = ProjectMember.query.get_or_404(project_member_id)
+        db.session.delete(project_member)
+        db.session.commit()
+        return make_response(jsonify({"message": "Project member deleted successful"}), 200)
+
+api.add_resource(ProjectMemberResource, '/project_members', '/project_members/<int:project_member_id>')
+
 
 class Cohort(Resource):
    pass
