@@ -196,6 +196,7 @@ class ProjectMemberResource(Resource):
             project_members_list = [{
                 "id": project_member.id,
                 "user_id": project_member.user_id,
+                "username": project_member.user.username,
                 "project_id": project_member.project_id
             }for project_member in project_members]
             return make_response(jsonify(project_members_list), 200)
@@ -204,6 +205,7 @@ class ProjectMemberResource(Resource):
             project_member_dict = {
                 "id": project_member.id,
                 "user_id": project_member.user_id,
+                "username": project_member.user.username,
                 "project_id": project_member.project_id
             }
             return make_response(jsonify(project_member_dict), 200)
