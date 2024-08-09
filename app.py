@@ -144,9 +144,9 @@ class ProjectResource(Resource):
                 "description": project.description,
                 "github_url": project.github_url,
                 "users": [{
-                    "id": user.id,
-                    "username": user.username
-                } for user in project.users]  # Correct iteration over project.users
+                    "id": member.user.id,
+                    "username": member.user.username
+                } for member in project.project_members]  # Correct iteration over project.users
             } for project in projects]
             return make_response(jsonify(projects_list), 200)
         else:
@@ -157,9 +157,9 @@ class ProjectResource(Resource):
                 "description": project.description,
                 "github_url": project.github_url,
                 "users": [{
-                    "id": user.id,
-                    "username": user.username
-                } for user in project.users]  # Include users in the single project response
+                    "id": member.user.id,
+                    "username": member.user.username
+                } for member in project.project_members]  # Include users in the single project response
             }
             return make_response(jsonify(project_dict), 200)
     
