@@ -146,7 +146,7 @@ class ProjectResource(Resource):
                 "users": [{
                     "id": user.id,
                     "username": user.username
-                }for user in project.users]
+                } for user in project.users]  # Correct iteration over project.users
             } for project in projects]
             return make_response(jsonify(projects_list), 200)
         else:
@@ -159,7 +159,7 @@ class ProjectResource(Resource):
                 "users": [{
                     "id": user.id,
                     "username": user.username
-                } for user in project.users]
+                } for user in project.users]  # Include users in the single project response
             }
             return make_response(jsonify(project_dict), 200)
     
