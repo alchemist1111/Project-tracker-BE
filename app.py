@@ -61,17 +61,23 @@ class Login(Resource):
     def post(self):
         data = request.get_json()
         user = User.query.filter_by(email=data.get('email')).first()
+        
         if user:
             if user.authenticate(data.get('password')):
                 access_token = create_access_token(identity=user)
-                response = make_response({"user":user.to_dict(),'access_token': access_token},201)
+                
+                # Include the is_admin flag in the user dictionary
+                user_data = user.to_dict()
+                user_data['is_admin'] = user.is_admin
+                
+                response = make_response({"user": user_data, 'access_token': access_token}, 201)
                 return response
             else:
-                 return make_response({'error':"Incorrect password"},401)
+                return make_response({'error': "Incorrect password"}, 401)
         else:
-             return make_response({'error':"Unauthorized"},401)
+            return make_response({'error': "Unauthorized"}, 401)
         
-api.add_resource(Login,'/login',endpoint="login")
+api.add_resource(Login, '/login', endpoint="login")
 
 # User CRUD operations
 class UserResource(Resource):
