@@ -165,7 +165,24 @@ class ProjectResource(Resource):
     
     # Create a new project
     def post(self):
-        pass
+        data = request.get_json()
+
+        new_project = Project(
+            name=data['name'],
+            description=data.get('description', ''),
+            github_url=data.get('github_url', '')  
+        )
+
+        db.session.add(new_project)
+        db.session.commit()
+
+        project_dict = {
+            "id": new_project.id,
+            "name": new_project.name,
+            "description": new_project.description,
+            "github_url": new_project.github_url
+        }
+        return make_response(jsonify(project_dict), 201)
 
 
     # Update an existing project
@@ -198,7 +215,7 @@ api.add_resource(ProjectResource, '/projects', '/projects/<int:project_id>')
 
 class ProjectMemberResource(Resource):
     # Get a list of project members
-    def get(self, project_member_id):
+    def get(self, project_member_id=None):
         if project_member_id is None:
             project_members = ProjectMember.query.all()
             project_members_list = [{
@@ -220,7 +237,22 @@ class ProjectMemberResource(Resource):
     
     # Create a new project member
     def post(self):
-        pass
+        data = request.get_json()
+
+        new_project_member = ProjectMember(
+            user_id=data['user_id'],
+            project_id=data['project_id']
+        )
+
+        db.session.add(new_project_member)
+        db.session.commit()
+
+        project_member_dict = {
+            "id": new_project_member.id,
+            "user_id": new_project_member.user_id,
+            "project_id": new_project_member.project_id
+        }
+        return make_response(jsonify(project_member_dict), 201)
 
     # Update an existing project member
     def put(self, project_member_id):
@@ -249,12 +281,94 @@ class ProjectMemberResource(Resource):
 api.add_resource(ProjectMemberResource, '/project_members', '/project_members/<int:project_member_id>')
 
 
-class Cohort(Resource):
-   pass
+class CohortResource(Resource):
+   # Get a list of all cohorts
+   def get(self, cohort_id=None):
+    if cohort_id is None:
+        cohorts = Cohort.query.all()
+        cohorts_list = [{
+            "id": cohort.id,
+            "name": cohort.name,
+            "projects": [{
+                "id": project.id,
+                "name": project.name,
+                "description": project.description,
+                "github_url": project.github_url,
+                "project_members": [{
+                    "id": project_member.id,
+                    "user_id": project_member.user_id,
+                    "project_id": project_member.project_id
+                } for project_member in project.project_members]
+            } for project in cohort.projects]
+        } for cohort in cohorts]
+        return jsonify(cohorts_list)
+    else:
+        cohort = Cohort.query.get_or_404(cohort_id)
+        cohort_dict = {
+            "id": cohort.id,
+            "name": cohort.name,
+            "projects": [{
+                "id": project.id,
+                "name": project.name,
+                "description": project.description,
+                "github_url": project.github_url,
+                "project_members": [{
+                    "id": project_member.id,
+                    "user_id": project_member.user_id,
+                    "project_id": project_member.project_id
+                } for project_member in project.project_members]
+            } for project in cohort.projects]
+        }
+        return jsonify(cohort_dict)
+    
+    # Create a new cohort
+   def post(self):
+        data = request.get_json()
+        new_cohort = Cohort(name=data['name'])
+        db.session.add(new_cohort)
+        db.session.commit()
+
+        cohort_dict = {
+            "id": new_cohort.id,
+            "name": new_cohort.name
+        }
+        return make_response(jsonify(cohort_dict), 201)
+   
+   # Update an existing cohort
+   def put(self, cohort_id):
+       cohort = Cohort.query.get_or_404(cohort_id)
+       data = request.get_json()
+
+       cohort.name = data.get('name', cohort.name)
+       db.session.commit()
+
+       cohort_dict = {
+           "id": cohort.id,
+           "name": cohort.name
+       }
+       return jsonify(cohort_dict)
+   
+   # Delete an existing cohort
+   def delete(self, cohort_id):
+       cohort = Cohort.query.get_or_404(cohort_id)
+       db.session.delete(cohort)
+       db.session.commit()
+       return make_response(jsonify({"message": "Cohort deleted successfully"}), 200)
+
+api.add_resource(CohortResource, '/cohorts', '/cohorts/<int:cohort_id>')
 
 
-class Profile(Resource):
-   pass
+class ProfileResource(Resource):
+    def get(self, user_id):
+        user = User.query.get_or_404(user_id)
+        user_profile = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email
+        }
+        return make_response(jsonify(user_profile), 200)
+
+api.add_resource(ProfileResource, '/profile/<int:user_id>')
 
 class Feedback(Resource):
    pass
