@@ -394,16 +394,30 @@ api.add_resource(ProfileResource, '/profile/<int:user_id>')
 
 class UserByEmail(Resource):
     def post(self):
-        data = request.get_json()
-        email = data.get('email')
-        user = User.query.filter_by(email=email).first()
-        if user:
-            access_token = create_access_token(identity=user)
-            response = make_response({"user":user.to_dict(),'access_token': access_token},201)
-        else:
-            response = make_response({"message": "User not found"}, 404)
+        try:
+            data = request.get_json()
+            email = data.get('email')
+            
+            if not email:
+                return make_response({"message": "Email is required"}, 400)
+            
+            user = User.query.filter_by(email=email).first()
+            
+            if user:
+                access_token = create_access_token(identity=user)
+                response = make_response({
+                    "user": user.to_dict(),
+                    "access_token": access_token
+                }, 200)
+            else:
+                response = make_response({"message": "User not found"}, 404)
+            
+        except Exception as e:
+            response = make_response({"message": f"An error occurred: {str(e)}"}, 500)
+        
         return response
-api.add_resource(UserByEmail,'/userByEmail',endpoint="userByEmail")
+
+api.add_resource(UserByEmail, '/userByEmail', endpoint="userByEmail")
 
 class Feedback(Resource):
    pass
