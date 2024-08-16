@@ -4,7 +4,10 @@ from flask_jwt_extended import (
     JWTManager, create_access_token, get_jwt_identity, jwt_required
 )
 import os
-from config import db, app
+from datetime import datetime, timedelta
+from flask import redirect, url_for
+import jwt
+from config import db, app, Mail, Message
 from models import User, Project, ProjectMember, Cohort, Profile, Feedback
 
 # Configurations
@@ -12,6 +15,8 @@ app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "super-secret-ke
 app.config['JWT_TOKEN_LOCATION'] = ['headers']
 jwt = JWTManager(app)
 api=Api(app)
+mail = Mail(app)
+
 
 
 @jwt.user_identity_loader
@@ -37,6 +42,7 @@ class UserRegistration(Resource):
     email = data.get('email')
     password = data.get('password')
     is_admin = data.get('is_admin', False)
+    project_id = data.get('project_id')
 
     user = User.query.filter_by(email=email).first()
 
@@ -51,6 +57,11 @@ class UserRegistration(Resource):
         db.session.add(user)
         db.session.commit()
 
+        # Add user to project
+        project_member = ProjectMember(user_id=user.id, project_id=project_id)
+        db.session.add(project_member)
+        db.session.commit()
+
         access_token = create_access_token(identity=user)
         return make_response({"user":user.to_dict(),'access_token': access_token},201)
       
@@ -63,27 +74,30 @@ class UserRegistration(Resource):
 api.add_resource(UserRegistration, '/register', endpoint='/register')  
 
 # User login
-class Login(Resource):
+class LoginResource(Resource):
     def post(self):
         data = request.get_json()
-        user = User.query.filter_by(email=data.get('email')).first()
-        
-        if user:
-            if user.authenticate(data.get('password')):
-                access_token = create_access_token(identity=user)
-                
-                # Include the is_admin flag in the user dictionary
-                user_data = user.to_dict()
-                user_data['is_admin'] = user.is_admin
-                
-                response = make_response({"user": user_data, 'access_token': access_token}, 201)
-                return response
-            else:
-                return make_response({'error': "Incorrect password"}, 401)
+        email = data.get('email')
+        password = data.get('password')
+        project_id = data.get('project_id')
+
+        user = User.query.filter_by(email=email).first()
+
+        if user and user.authenticate(password):
+            access_token = create_access_token(identity=user)
+
+            # Check if user is already a member of the project
+            if not ProjectMember.query.filter_by(user_id=user.id, project_id=project_id).first():
+                # Add user to project
+                project_member = ProjectMember(user_id=user.id, project_id=project_id)
+                db.session.add(project_member)
+                db.session.commit()
+
+            return make_response({"user": user.to_dict(), 'access_token': access_token}, 201)
         else:
             return make_response({'error': "Unauthorized"}, 401)
         
-api.add_resource(Login, '/login', endpoint="login")
+api.add_resource(LoginResource, '/login', endpoint="login")
 
 # User CRUD operations
 class UserResource(Resource):
@@ -402,6 +416,61 @@ class UserByEmail(Resource):
         return response
 
 api.add_resource(UserByEmail, '/userByEmail', endpoint="userByEmail")
+
+# Email invite
+def generate_invite_token(email, project_id):
+    token = jwt.encode({
+        'email': email,
+        'project_id': project_id,
+        'exp': datetime.UTC() + timedelta(hours=24)  # Token valid for 24 hours
+    }, app.config["JWT_SECRET_KEY"], algorithm='HS256')
+    return token
+
+# Email Endpoint
+class SendInvite(Resource):
+    @jwt_required()
+    def post(self):
+        data = request.get_json()
+        email = data.get('email')
+        project_id = data.get('project_id')
+
+        # Generate token
+        token = generate_invite_token(email, project_id)
+        invite_link = url_for('handle_invite', token=token, _external=True)
+
+        # Send email
+        msg = Message('Project Invitation', recipients=[email])
+        msg.body = f'You have been invited to join the project. Click here to accept the invite: {invite_link}'
+        mail.send(msg)
+
+        return jsonify({"message": "Invitation sent!"}), 200
+
+api.add_resource(SendInvite, '/send_invite')
+
+# Endpoint to handle invite link
+@app.route('/invite/<token>', methods=['GET'])
+def handle_invite(token):
+    try:
+        # Decode the token
+        decoded_token = jwt.decode(token, app.config["JWT_SECRET_KEY"], algorithms=["HS256"])
+        email = decoded_token['email']
+        project_id = decoded_token['project_id']
+        
+        # Check if user exists
+        user = User.query.filter_by(email=email).first()
+        if user:
+            # User exists, redirect to login with project_id
+            return redirect(url_for('login', email=email, project_id=project_id))
+        else:
+            # User does not exist, redirect to signup with project_id
+            return redirect(url_for('register', email=email, project_id=project_id))
+    
+    except jwt.ExpiredSignatureError:
+        return jsonify({'message': 'The invitation link has expired.'}), 400
+    except jwt.InvalidTokenError:
+        return jsonify({'message': 'Invalid invitation link.'}), 400
+
+
 
 class Feedback(Resource):
    pass
