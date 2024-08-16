@@ -184,7 +184,6 @@ class ProjectResource(Resource):
             return make_response(jsonify(project_dict), 200)
     
     # Create a new project
-    @jwt_required()
     def post(self):
         
         data = request.get_json()
@@ -260,7 +259,6 @@ class ProjectMemberResource(Resource):
             return make_response(jsonify(project_member_dict), 200)
     
     # Create a new project member
-    @jwt_required()
     def post(self):
         data = request.get_json()
 
@@ -280,7 +278,6 @@ class ProjectMemberResource(Resource):
         return make_response(jsonify(project_member_dict), 201)
 
     # Update an existing project member
-    @jwt_required()
     def put(self, project_member_id):
         project_member = ProjectMember.query.get_or_404(project_member_id)
         data = request.get_json()
@@ -298,7 +295,6 @@ class ProjectMemberResource(Resource):
         return make_response(jsonify(project_member_dict), 200)
 
     # Delete an existing project member
-    @jwt_required()
     def delete(self, project_member_id):
         project_member = ProjectMember.query.get_or_404(project_member_id)
         db.session.delete(project_member)
