@@ -88,7 +88,6 @@ api.add_resource(Login, '/login', endpoint="login")
 # User CRUD operations
 class UserResource(Resource):
     # Get all users
-    @jwt_required()
     def get(self, user_id=None):
         if user_id:
             user = User.query.get_or_404(user_id)
@@ -111,7 +110,6 @@ class UserResource(Resource):
 
 
     # Update user
-    @jwt_required()
     def put(self, user_id):
         user = User.query.get_or_404(user_id)
         data = request.get_json()
@@ -131,7 +129,6 @@ class UserResource(Resource):
         return make_response(jsonify(user_dict), 200)
     
     # Delete user
-    @jwt_required()
     def delete(self, user_id):
         user = User.query.get_or_404(user_id)
         db.session.delete(user)
@@ -144,7 +141,6 @@ api.add_resource(UserResource, '/users', '/users/<int:user_id>')
 # Project CRUD operations
 class ProjectResource(Resource):
     # Get a list of projects or a specific project
-    @jwt_required()
     def get(self, project_id=None):
         if project_id is None:
             projects = Project.query.all()
@@ -174,7 +170,6 @@ class ProjectResource(Resource):
             return make_response(jsonify(project_dict), 200)
     
     # Create a new project
-    @jwt_required()
     def post(self):
         data = request.get_json()
 
@@ -197,7 +192,6 @@ class ProjectResource(Resource):
 
 
     # Update an existing project
-    @jwt_required()
     def put(self, project_id):
         project = Project.query.get_or_404(project_id)
         data = request.get_json()
@@ -217,7 +211,6 @@ class ProjectResource(Resource):
         return make_response(jsonify(project_dict), 200)
 
     # Delete an existing project
-    @jwt_required()
     def delete(self, project_id):
         project = Project.query.get_or_404(project_id)
         db.session.delete(project)
@@ -228,7 +221,6 @@ api.add_resource(ProjectResource, '/projects', '/projects/<int:project_id>')
 
 class ProjectMemberResource(Resource):
     # Get a list of project members
-    @jwt_required()
     def get(self, project_member_id=None):
         if project_member_id is None:
             project_members = ProjectMember.query.all()
@@ -250,7 +242,6 @@ class ProjectMemberResource(Resource):
             return make_response(jsonify(project_member_dict), 200)
     
     # Create a new project member
-    @jwt_required()
     def post(self):
         data = request.get_json()
 
@@ -270,7 +261,6 @@ class ProjectMemberResource(Resource):
         return make_response(jsonify(project_member_dict), 201)
 
     # Update an existing project member
-    @jwt_required()
     def put(self, project_member_id):
         project_member = ProjectMember.query.get_or_404(project_member_id)
         data = request.get_json()
@@ -288,7 +278,6 @@ class ProjectMemberResource(Resource):
         return make_response(jsonify(project_member_dict), 200)
 
     # Delete an existing project member
-    @jwt_required()
     def delete(self, project_member_id):
         project_member = ProjectMember.query.get_or_404(project_member_id)
         db.session.delete(project_member)
@@ -300,7 +289,6 @@ api.add_resource(ProjectMemberResource, '/project_members', '/project_members/<i
 
 class CohortResource(Resource):
    # Get a list of all cohorts
-   @jwt_required()
    def get(self, cohort_id=None):
     if cohort_id is None:
         cohorts = Cohort.query.all()
@@ -340,7 +328,6 @@ class CohortResource(Resource):
         return jsonify(cohort_dict)
     
     # Create a new cohort
-   @jwt_required()
    def post(self):
         data = request.get_json()
         new_cohort = Cohort(name=data['name'])
@@ -354,7 +341,6 @@ class CohortResource(Resource):
         return make_response(jsonify(cohort_dict), 201)
    
    # Update an existing cohort
-   @jwt_required()
    def put(self, cohort_id):
        cohort = Cohort.query.get_or_404(cohort_id)
        data = request.get_json()
@@ -369,7 +355,6 @@ class CohortResource(Resource):
        return jsonify(cohort_dict)
    
    # Delete an existing cohort
-   @jwt_required()
    def delete(self, cohort_id):
        cohort = Cohort.query.get_or_404(cohort_id)
        db.session.delete(cohort)
@@ -380,7 +365,6 @@ api.add_resource(CohortResource, '/cohorts', '/cohorts/<int:cohort_id>')
 
 
 class ProfileResource(Resource):
-    @jwt_required()
     def get(self, user_id):
         user = User.query.get_or_404(user_id)
         user_profile = {
