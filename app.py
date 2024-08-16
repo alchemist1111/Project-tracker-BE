@@ -207,7 +207,6 @@ class ProjectResource(Resource):
 
 
     # Update an existing project
-    @jwt_required()
     def put(self, project_id):
         project = Project.query.get_or_404(project_id)
         data = request.get_json()
@@ -227,7 +226,6 @@ class ProjectResource(Resource):
         return make_response(jsonify(project_dict), 200)
 
     # Delete an existing project
-    @jwt_required()
     def delete(self, project_id):
         project = Project.query.get_or_404(project_id)
         db.session.delete(project)
@@ -431,7 +429,6 @@ def generate_invite_token(email, project_id):
 
 # Email Endpoint
 class SendInvite(Resource):
-    @jwt_required()
     def post(self):
         data = request.get_json()
         email = data.get('email')
