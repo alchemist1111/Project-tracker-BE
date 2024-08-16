@@ -184,7 +184,9 @@ class ProjectResource(Resource):
             return make_response(jsonify(project_dict), 200)
     
     # Create a new project
+    @jwt_required()
     def post(self):
+        
         data = request.get_json()
 
         new_project = Project(
@@ -206,6 +208,7 @@ class ProjectResource(Resource):
 
 
     # Update an existing project
+    @jwt_required()
     def put(self, project_id):
         project = Project.query.get_or_404(project_id)
         data = request.get_json()
@@ -225,6 +228,7 @@ class ProjectResource(Resource):
         return make_response(jsonify(project_dict), 200)
 
     # Delete an existing project
+    @jwt_required()
     def delete(self, project_id):
         project = Project.query.get_or_404(project_id)
         db.session.delete(project)
@@ -256,6 +260,7 @@ class ProjectMemberResource(Resource):
             return make_response(jsonify(project_member_dict), 200)
     
     # Create a new project member
+    @jwt_required()
     def post(self):
         data = request.get_json()
 
@@ -275,6 +280,7 @@ class ProjectMemberResource(Resource):
         return make_response(jsonify(project_member_dict), 201)
 
     # Update an existing project member
+    @jwt_required()
     def put(self, project_member_id):
         project_member = ProjectMember.query.get_or_404(project_member_id)
         data = request.get_json()
@@ -292,6 +298,7 @@ class ProjectMemberResource(Resource):
         return make_response(jsonify(project_member_dict), 200)
 
     # Delete an existing project member
+    @jwt_required()
     def delete(self, project_member_id):
         project_member = ProjectMember.query.get_or_404(project_member_id)
         db.session.delete(project_member)
@@ -422,7 +429,7 @@ def generate_invite_token(email, project_id):
     token = jwt.encode({
         'email': email,
         'project_id': project_id,
-        'exp': datetime.UTC() + timedelta(hours=24)  # Token valid for 24 hours
+        'exp': datetime.utcnow() + timedelta(hours=24)  # Token valid for 24 hours
     }, app.config["JWT_SECRET_KEY"], algorithm='HS256')
     return token
 
