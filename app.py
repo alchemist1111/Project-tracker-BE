@@ -442,7 +442,7 @@ class SendInvite(Resource):
                 if not email:  # Skip any empty email fields
                     continue
 
-                # Generate token for each email
+                # Generate token
                 token = generate_invite_token(email, project_id)
                 invite_link = url_for('handle_invite', token=token, _external=True)
 
@@ -451,11 +451,14 @@ class SendInvite(Resource):
                 msg.body = f'You have been invited to join the project. Click here to accept the invite: {invite_link}'
                 mail.send(msg)
 
+            # Return a dictionary which jsonify will convert to JSON
             return jsonify({"message": "Invitations sent!"}), 200
+        
         except Exception as e:
-            # Log the exception and return a 500 error
+            # Log the exception and return a JSON serializable error message
             app.logger.error(f"Error sending invite: {e}")
             return jsonify({"error": str(e)}), 500
+
 
 api.add_resource(SendInvite, '/send_invite')
 
