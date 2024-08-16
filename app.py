@@ -418,7 +418,7 @@ class UserByEmail(Resource):
 
 api.add_resource(UserByEmail, '/userByEmail', endpoint="userByEmail")
 
-# Email invite
+# Generate invite token
 def generate_invite_token(email, project_id):
     token = jwt.encode({
         'email': email,
@@ -430,20 +430,32 @@ def generate_invite_token(email, project_id):
 # Email Endpoint
 class SendInvite(Resource):
     def post(self):
-        data = request.get_json()
-        email = data.get('email')
-        project_id = data.get('project_id')
+        try:
+            data = request.get_json()
+            emails = data.get('emails')  # Expecting a list of emails
+            project_id = data.get('project_id')
 
-        # Generate token
-        token = generate_invite_token(email, project_id)
-        invite_link = url_for('handle_invite', token=token, _external=True)
+            if not emails or not project_id:
+                return jsonify({"error": "Emails and project ID are required"}), 400
 
-        # Send email
-        msg = Message('Project Invitation', recipients=[email])
-        msg.body = f'You have been invited to join the project. Click here to accept the invite: {invite_link}'
-        mail.send(msg)
+            for email in emails:
+                if not email:  # Skip any empty email fields
+                    continue
 
-        return jsonify({"message": "Invitation sent!"}), 200
+                # Generate token for each email
+                token = generate_invite_token(email, project_id)
+                invite_link = url_for('handle_invite', token=token, _external=True)
+
+                # Send email
+                msg = Message('Project Invitation', recipients=[email])
+                msg.body = f'You have been invited to join the project. Click here to accept the invite: {invite_link}'
+                mail.send(msg)
+
+            return jsonify({"message": "Invitations sent!"}), 200
+        except Exception as e:
+            # Log the exception and return a 500 error
+            app.logger.error(f"Error sending invite: {e}")
+            return jsonify({"error": str(e)}), 500
 
 api.add_resource(SendInvite, '/send_invite')
 
