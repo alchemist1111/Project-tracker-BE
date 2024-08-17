@@ -9,6 +9,10 @@ def seed_data():
     with app.app_context():
         # Clear existing data
         db.session.query(User).delete()
+        db.session.query(Project).delete()
+        db.session.query(ProjectMember).delete()
+        db.session.query(Cohort).delete()
+        db.session.query(Profile).delete()
 
         # Add users
         users = [

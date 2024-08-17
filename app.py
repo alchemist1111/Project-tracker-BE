@@ -9,6 +9,8 @@ from flask import redirect, url_for
 import jwt
 from config import db, app, Mail, Message
 from models import User, Project, ProjectMember, Cohort, Profile, Feedback
+from email_validator import validate_email, EmailNotValidError
+
 
 # Configurations
 app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "super-secret-key")
@@ -418,7 +420,7 @@ class UserByEmail(Resource):
 
 api.add_resource(UserByEmail, '/userByEmail', endpoint="userByEmail")
 
-# Generate invite token
+# Generate Invite Token
 def generate_invite_token(email, project_id):
     token = jwt.encode({
         'email': email,
@@ -429,36 +431,64 @@ def generate_invite_token(email, project_id):
 
 # Email Endpoint
 class SendInvite(Resource):
+    @jwt_required()  # Ensure the user is authenticated before sending invitations
     def post(self):
         try:
+            # Get the current user's identity from the JWT token
+            user_id = get_jwt_identity()
+
+            # Fetch the sender's email from the User table using the user_id
+            sender_user = User.query.filter_by(id=user_id).first()
+            
+            if not sender_user or not sender_user.email:
+                return jsonify({"error": "Sender not found or email not set"}), 400
+            
+            sender_email = sender_user.email
+
             data = request.get_json()
-            emails = data.get('emails')  # Expecting a list of emails
+            emails = data.get('emails')  # Expecting a list of recipient emails
             project_id = data.get('project_id')
 
             if not emails or not project_id:
                 return jsonify({"error": "Emails and project ID are required"}), 400
 
+            # Loop through recipient emails and send invitations
             for email in emails:
-                if not email:  # Skip any empty email fields
+                if not email:  # Skip empty fields
                     continue
 
-                # Generate token
-                token = generate_invite_token(email, project_id)
-                invite_link = url_for('handle_invite', token=token, _external=True)
+                try:
+                    # Validate recipient email format
+                    valid = validate_email(email)
+                    email = valid.email  # Get normalized email
 
-                # Send email
-                msg = Message('Project Invitation', recipients=[email])
-                msg.body = f'You have been invited to join the project. Click here to accept the invite: {invite_link}'
-                mail.send(msg)
+                    # Generate token
+                    token = generate_invite_token(email, project_id)
+                    invite_link = url_for('handle_invite', token=token, _external=True)
 
-            # Return a dictionary which jsonify will convert to JSON
+                    # Send email
+                    msg = Message(
+                        'Project Invitation',
+                        sender=sender_email,  # Use sender's email retrieved from the database
+                        recipients=[email]
+                    )
+                    msg.body = f'You have been invited to join the project. Click here to accept the invite: {invite_link}'
+                    mail.send(msg)
+
+                except EmailNotValidError as e:
+                    app.logger.warning(f"Invalid recipient email {email}: {str(e)}")
+                    continue
+                except Exception as email_exception:
+                    app.logger.error(f"Failed to send invite to {email}: {str(email_exception)}")
+                    continue
+
+            # Return a success response
             return jsonify({"message": "Invitations sent!"}), 200
-        
-        except Exception as e:
-            # Log the exception and return a JSON serializable error message
-            app.logger.error(f"Error sending invite: {e}")
-            return jsonify({"error": str(e)}), 500
 
+        except Exception as e:
+            # Log the error and return an error response
+            app.logger.error(f"Error sending invite: {str(e)}")
+            return jsonify({"error": str(e)}), 500
 
 api.add_resource(SendInvite, '/send_invite')
 
