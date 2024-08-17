@@ -1,7 +1,7 @@
 from flask import Flask, request, make_response, jsonify
 from flask_restful import Api, Resource
 from flask_jwt_extended import (
-    JWTManager, create_access_token, get_jwt_identity, jwt_required
+    JWTManager, create_access_token, get_jwt_identity, jwt_required, decode_token
 )
 import os
 from datetime import datetime, timedelta
@@ -21,9 +21,10 @@ mail = Mail(app)
 
 
 
+# User identity lookup for JWT
 @jwt.user_identity_loader
 def user_identity_lookup(user):
-    return user.id
+    return user
 
 @jwt.user_lookup_loader
 def user_lookup_callback(_jwt_header, jwt_data):
@@ -36,61 +37,60 @@ class Home(Resource):
 
 api.add_resource(Home,'/')
 
-# User registration
+# User Registration with automatic project member addition
 class UserRegistration(Resource):
-  def post(self):
-    data = request.get_json()
-    username = data.get('username')
-    email = data.get('email')
-    password = data.get('password')
-    is_admin = data.get('is_admin', False)
-    project_id = data.get('project_id')
+    def post(self):
+        data = request.get_json()
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
+        is_admin = data.get('is_admin', False)
+        project_id = data.get('project_id')  # Project ID passed with registration
 
-    user = User.query.filter_by(email=email).first()
+        user = User.query.filter_by(email=email).first()
 
-    if not user:
-      try:
-        user = User(
-          username=username,
-          email=email,
-          is_admin=is_admin
-        )
-        user.password_hash = password
-        db.session.add(user)
-        db.session.commit()
+        if not user:
+            try:
+                user = User(
+                    username=username,
+                    email=email,
+                    is_admin=is_admin  # Assume is_admin is a boolean field in the User model
+                )
+                user.password_hash = password  # Assuming bcrypt is used for password hashing
+                db.session.add(user)
+                db.session.commit()
 
-        # Add user to project
-        project_member = ProjectMember(user_id=user.id, project_id=project_id)
-        db.session.add(project_member)
-        db.session.commit()
+                # Add user to the project_members table
+                project_member = ProjectMember(user_id=user.id, project_id=project_id)
+                db.session.add(project_member)
+                db.session.commit()
 
-        access_token = create_access_token(identity=user)
-        return make_response({"user":user.to_dict(),'access_token': access_token},201)
-      
-      except Exception as e:
-        return {'error': e.args}, 422
+                # Generate access token for the new user
+                access_token = create_access_token(identity=user.id)
+                return make_response({"user": user.to_dict(), 'access_token': access_token}, 201)
 
-    else:
-      return make_response({'error':"Email already registered, kindly log in"},401)  
+            except Exception as e:
+                return {'error': str(e)}, 422
+        else:
+            return make_response({'error': "Email already registered, kindly log in"}, 401)
 
 api.add_resource(UserRegistration, '/register', endpoint='/register')  
 
-# User login
+# User Login and project member addition
 class LoginResource(Resource):
     def post(self):
         data = request.get_json()
         email = data.get('email')
         password = data.get('password')
-        project_id = data.get('project_id')
+        project_id = data.get('project_id')  # Passed during login if coming from invite
 
         user = User.query.filter_by(email=email).first()
 
-        if user and user.authenticate(password):
-            access_token = create_access_token(identity=user)
+        if user and user.authenticate(password):  # Assuming authenticate checks hashed passwords
+            access_token = create_access_token(identity=user.id)
 
-            # Check if user is already a member of the project
+            # Check if the user is already a member of the project
             if not ProjectMember.query.filter_by(user_id=user.id, project_id=project_id).first():
-                # Add user to project
                 project_member = ProjectMember(user_id=user.id, project_id=project_id)
                 db.session.add(project_member)
                 db.session.commit()
@@ -98,7 +98,7 @@ class LoginResource(Resource):
             return make_response({"user": user.to_dict(), 'access_token': access_token}, 201)
         else:
             return make_response({'error': "Unauthorized"}, 401)
-        
+
 api.add_resource(LoginResource, '/login', endpoint="login")
 
 # User CRUD operations
@@ -422,80 +422,85 @@ api.add_resource(UserByEmail, '/userByEmail', endpoint="userByEmail")
 
 # Generate Invite Token
 def generate_invite_token(email, project_id):
-    token = jwt.encode({
-        'sub': {
-            'email': email,
-            'project_id': project_id
-        },
-        'exp': datetime.utcnow() + timedelta(hours=24)
-    }, app.config["JWT_SECRET_KEY"], algorithm='HS256')
+    # Create a token with custom claims
+    additional_claims = {
+        'email': email,
+        'project_id': project_id
+    }
+    token = create_access_token(identity=email, additional_claims=additional_claims, expires_delta=timedelta(hours=24))
     return token
 
-# Email Endpoint
+# Send Invite via Email
 class SendInvite(Resource):
     @jwt_required()
     def post(self):
         try:
+            # Get the user's identity from the JWT token and query the user from the database
             user_id = get_jwt_identity()
             sender_user = User.query.filter_by(id=user_id).first()
-            
+
             if not sender_user or not sender_user.email:
-                return jsonify({"error": "Sender not found or email not set"}), 400
-            
-            sender_email = sender_user.email
+                return {"error": "Sender not found or email not set"}, 400
+
+            sender_email = sender_user.email  # Dynamic sender email
+
             data = request.get_json()
             emails = data.get('emails', [])
             project_id = data.get('project_id')
-            
-            # Validate that emails and project_id are provided
+
             if not emails or not project_id:
-                return jsonify({"error": "Emails and project ID are required"}), 400
+                return {"error": "Emails and project ID are required"}, 400
+
+            invite_statuses = []
 
             for email in emails:
                 if not email:
                     continue
                 try:
-                    valid = validate_email(email)
-                    email = valid.email  # Normalized email
-
-                    # Generate token and invite link
+                    # Generate invite token and link (your implementation)
                     token = generate_invite_token(email, project_id)
                     invite_link = url_for('handle_invite', token=token, _external=True)
 
-                    # Send email
+                    # Create a message with the dynamic sender's email
                     msg = Message(
-                        'Project Invitation',
-                        sender=sender_email,
+                        subject='Project Invitation',
+                        sender=sender_email,  # Dynamic sender
                         recipients=[email]
                     )
                     msg.body = f'You have been invited to join the project. Click here: {invite_link}'
                     mail.send(msg)
 
-                except EmailNotValidError as e:
-                    app.logger.warning(f"Invalid email {email}: {str(e)}")
-                    continue
-                except Exception as email_exception:
-                    app.logger.error(f"Failed to send invite to {email}: {str(email_exception)}")
-                    continue
+                    invite_statuses.append({
+                        "email": email,
+                        "status": "sent",
+                        "invite_link": invite_link
+                    })
 
-            return jsonify({"message": "Invitations sent!"}), 200
+                except Exception as e:
+                    invite_statuses.append({
+                        "email": email,
+                        "status": "failed",
+                        "error": str(e)
+                    })
+
+            return {"message": "Invitations processed!", "results": invite_statuses}, 200
 
         except Exception as e:
-            app.logger.error(f"Error sending invite: {str(e)}")
-            return jsonify({"error": str(e)}), 500
+            return {"error": str(e)}, 500
 
+# Example resource registration for Flask-RESTful
 api.add_resource(SendInvite, '/send_invite')
 
-# Endpoint to handle invite link
+# Handle Invite Link
 @app.route('/invite/<token>', methods=['GET'])
 def handle_invite(token):
     try:
         # Decode the token
-        decoded_token = jwt.decode(token, app.config["JWT_SECRET_KEY"], algorithms=["HS256"])
+        decoded_token = decode_token(token)
         email = decoded_token['email']
         project_id = decoded_token['project_id']
-        
-        # Check if user exists
+
+        # Check if the user exists
         user = User.query.filter_by(email=email).first()
         if user:
             # User exists, redirect to login with project_id
@@ -503,11 +508,9 @@ def handle_invite(token):
         else:
             # User does not exist, redirect to signup with project_id
             return redirect(url_for('register', email=email, project_id=project_id))
-    
-    except jwt.ExpiredSignatureError:
-        return jsonify({'message': 'The invitation link has expired.'}), 400
-    except jwt.InvalidTokenError:
-        return jsonify({'message': 'Invalid invitation link.'}), 400
+
+    except Exception as e:
+        return jsonify({'message': str(e)}), 400
 
 
 

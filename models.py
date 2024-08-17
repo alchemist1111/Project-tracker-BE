@@ -26,7 +26,7 @@ class User(db.Model, SerializerMixin):
     )
 
     # Add serialize rules
-    serialize_rules = ("-projects", "-_password_hash", "-cohort.users", "-project_members", "-profile.user",)
+    serialize_rules = ("-projects", "-_password_hash", "-cohort.users", "-project_members", "-profile.user")
 
     @hybrid_property
     def password_hash(self):
@@ -60,7 +60,7 @@ class Project(db.Model, SerializerMixin):
     cohort = db.relationship('Cohort', back_populates='projects', lazy='joined')
 
     # Add serialize rules
-    serialize_rules = ("-user.projects", "-project_members.project", "-cohort.projects",)
+    serialize_rules = ("-user.projects", "-project_members.project", "-cohort.projects")
 
     def __repr__(self):
         return f'<Project, id={self.id}, name={self.name}, github_url={self.github_url}>'
@@ -78,7 +78,7 @@ class ProjectMember(db.Model, SerializerMixin):
     project = db.relationship('Project', back_populates='project_members', lazy='joined')
 
     # Add serialize rules
-    serialize_rules = ("-user.project_members", "-project.project_members",)
+    serialize_rules = ("-user.project_members", "-project.project_members")
 
     def __repr__(self):
         return f'<ProjectMember, id={self.id}, user_id={self.user_id}, project_id={self.project_id}>'
@@ -95,7 +95,7 @@ class Cohort(db.Model, SerializerMixin):
     projects = db.relationship('Project', back_populates='cohort', lazy='dynamic')
 
     # Add serialize rules
-    serialize_rules = ("-users", "-projects",)
+    serialize_rules = ("-users", "-projects")
 
     def __repr__(self):
         return f'<Cohort, id={self.id}, name={self.name}>'
@@ -111,7 +111,7 @@ class Profile(db.Model, SerializerMixin):
     user = db.relationship('User', back_populates='profile', lazy='joined')
 
     # Add serialize rules
-    serialize_rules = ("user.username", "user.email",)
+    serialize_rules = ("user.username", "user.email")
 
     def __repr__(self):
         return f'<Profile, id={self.id}, user_id={self.user_id}>'
