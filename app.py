@@ -423,70 +423,64 @@ api.add_resource(UserByEmail, '/userByEmail', endpoint="userByEmail")
 # Generate Invite Token
 def generate_invite_token(email, project_id):
     token = jwt.encode({
-        'email': email,
-        'project_id': project_id,
-        'exp': datetime.utcnow() + timedelta(hours=24)  # Token valid for 24 hours
+        'sub': {
+            'email': email,
+            'project_id': project_id
+        },
+        'exp': datetime.utcnow() + timedelta(hours=24)
     }, app.config["JWT_SECRET_KEY"], algorithm='HS256')
     return token
 
 # Email Endpoint
 class SendInvite(Resource):
-    @jwt_required()  # Ensure the user is authenticated before sending invitations
+    @jwt_required()
     def post(self):
         try:
-            # Get the current user's identity from the JWT token
             user_id = get_jwt_identity()
-
-            # Fetch the sender's email from the User table using the user_id
             sender_user = User.query.filter_by(id=user_id).first()
             
             if not sender_user or not sender_user.email:
                 return jsonify({"error": "Sender not found or email not set"}), 400
             
             sender_email = sender_user.email
-
             data = request.get_json()
-            emails = data.get('emails')  # Expecting a list of recipient emails
+            emails = data.get('emails', [])
             project_id = data.get('project_id')
-
+            
+            # Validate that emails and project_id are provided
             if not emails or not project_id:
                 return jsonify({"error": "Emails and project ID are required"}), 400
 
-            # Loop through recipient emails and send invitations
             for email in emails:
-                if not email:  # Skip empty fields
+                if not email:
                     continue
-
                 try:
-                    # Validate recipient email format
                     valid = validate_email(email)
-                    email = valid.email  # Get normalized email
+                    email = valid.email  # Normalized email
 
-                    # Generate token
+                    # Generate token and invite link
                     token = generate_invite_token(email, project_id)
                     invite_link = url_for('handle_invite', token=token, _external=True)
 
                     # Send email
                     msg = Message(
                         'Project Invitation',
-                        sender=sender_email,  # Use sender's email retrieved from the database
+                        sender=sender_email,
                         recipients=[email]
                     )
-                    msg.body = f'You have been invited to join the project. Click here to accept the invite: {invite_link}'
+                    msg.body = f'You have been invited to join the project. Click here: {invite_link}'
                     mail.send(msg)
 
                 except EmailNotValidError as e:
-                    app.logger.warning(f"Invalid recipient email {email}: {str(e)}")
+                    app.logger.warning(f"Invalid email {email}: {str(e)}")
                     continue
                 except Exception as email_exception:
                     app.logger.error(f"Failed to send invite to {email}: {str(email_exception)}")
                     continue
 
-            # Return a success response
             return jsonify({"message": "Invitations sent!"}), 200
 
         except Exception as e:
-            # Log the error and return an error response
             app.logger.error(f"Error sending invite: {str(e)}")
             return jsonify({"error": str(e)}), 500
 

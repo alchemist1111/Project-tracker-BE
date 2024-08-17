@@ -9,7 +9,7 @@ from flask_migrate import Migrate
 from flask_restful import Api
 from flask import Flask
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
 
 # Initialize Flask app
