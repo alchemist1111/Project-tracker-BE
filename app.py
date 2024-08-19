@@ -1,5 +1,6 @@
 from flask import Flask, request, make_response, jsonify
 from flask_restful import Api, Resource
+from flask import current_app
 from flask_jwt_extended import (
     JWTManager, create_access_token, get_jwt_identity, jwt_required, decode_token
 )
@@ -7,7 +8,7 @@ import os
 from datetime import datetime, timedelta
 from flask import redirect, url_for
 import jwt
-from config import db, app, Mail, Message
+from config import db, app, Mail, Message, bcrypt
 from models import User, Project, ProjectMember, Cohort, Profile, Feedback
 from email_validator import validate_email, EmailNotValidError
 
@@ -420,6 +421,7 @@ class UserByEmail(Resource):
 
 api.add_resource(UserByEmail, '/userByEmail', endpoint="userByEmail")
 
+# Invite logic
 # Generate Invite Token
 def generate_invite_token(email, project_id):
     # Create a token with custom claims
@@ -511,6 +513,71 @@ def handle_invite(token):
 
     except Exception as e:
         return jsonify({'message': str(e)}), 400
+
+# Forgot password reset logic
+# Send reset email
+def send_reset_email(user_email, token):
+    msg = Message('Password Reset Request',
+                  sender='noreply@example.com',
+                  recipients=[user_email])
+    
+    # Use the FRONTEND_URL from the config
+    reset_url = f"{current_app.config['FRONTEND_URL']}/reset-password/{token}"
+    msg.body = f'''To reset your password, visit the following link:
+{reset_url}
+If you did not make this request, please ignore this email.
+'''
+    mail.send(msg)
+
+
+# Forgot password endpoint
+@app.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.get_json()
+    email = data.get('email')
+    
+    user = User.query.filter_by(email=email).first()
+
+    if user:
+        # Generate a token valid for 30 minutes
+        expires = timedelta(minutes=30)
+        reset_token = create_access_token(identity={'email': user.email, 'user_id': user.id}, expires_delta=expires)
+        
+        # Send email with the token
+        send_reset_email(user.email, reset_token)
+
+        return jsonify({"msg": "Password reset email sent"}), 200
+
+    return jsonify({"msg": "Email not found"}), 404
+
+# Reset password endpoint
+@app.route('/reset-password/<token>', methods=['POST'])
+def reset_password(token):
+    try:
+        # Decode the token
+        decoded_token = decode_token(token)
+        email = decoded_token['sub']['email']
+
+        # Process password reset
+        data = request.get_json()
+        new_password = data.get('password')
+        
+        # Hash the new password using bcrypt
+        hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        user = User.query.filter_by(email=email).first()
+
+        if user:
+            user.password = hashed_password
+            db.session.commit()
+            return jsonify({"msg": "Password has been reset!"}), 200
+
+        return jsonify({"msg": "Invalid token or user not found"}), 400
+
+    except Exception as e:
+        return jsonify({"msg": "Token is invalid or expired"}), 400
+
+
 
 
 
